@@ -93,3 +93,93 @@ class ImageDataset_paper(Dataset):
             return len(self.train_input_files)
         elif self.mode == "test":
             return len(self.test_input_files)
+
+
+class PPR10kDataset(Dataset):
+    def __init__(self, root, retoucher="a", mode="train", use_mask=False):
+        self.mode = mode
+        self.root = root
+        self.retoucher = retoucher
+        self.train_input_files = sorted(glob.glob(os.path.join(root, "train/source_aug_6" + "/*.tif")))
+        self.train_target_files = sorted(glob.glob(os.path.join(root, "train/target_" + self.retoucher + "/*.tif")))
+
+        self.test_input_files = sorted(glob.glob(os.path.join(root, "val/source" + "/*.tif")))
+        self.test_target_files = sorted(glob.glob(os.path.join(root, "val/target_" + self.retoucher + "/*.tif")))
+
+        self.use_mask = use_mask
+        self.train_mask_files = sorted(glob.glob(os.path.join(root, "train/masks" + "/*.png")))
+        self.test_mask_files = sorted(glob.glob(os.path.join(root, "val/masks" + "/*.png")))
+
+        print(f"=== PPR10K: {mode} ====")
+        print('Training with: target_' + self.retoucher)
+        print("       Input  Target")
+        if mode == "train":
+            print(f"Train {len(self.train_input_files)}  {len(self.train_target_files)}")
+        if mode == "test":
+            print(f"Test  {len(self.test_input_files)}   {len(self.test_target_files)}")
+        if use_mask:
+            print(f"Mask  {len(self.train_mask_files)}   {len(self.test_mask_files)}")
+
+    def __getitem__(self, index):
+
+        if self.mode == "train":
+            img_name = os.path.split(self.train_input_files[index % len(self.train_input_files)])[-1]
+            img_input = Image.open(self.train_input_files[index % len(self.train_input_files)])
+            if len(self.train_input_files) == len(self.train_target_files):
+                img_expt_c = Image.open(self.train_target_files[index % len(self.train_target_files)])
+                if self.use_mask:
+                    img_mask = Image.open(os.path.join(self.root, "train/masks/" + img_name[:-4] + ".png"))
+            else:
+                split_name = img_name.split('_')
+                if len(split_name) == 2:
+                    img_expt_c = Image.open(os.path.join(self.root, "train/target_" + self.retoucher + '/' + img_name))
+                    if self.use_mask:
+                        img_mask = Image.open(os.path.join(self.root, "train/masks/" + img_name[:-4] + ".png"))
+                else:
+                    img_expt_c = Image.open(
+                        os.path.join(self.root, "train/target_" + self.retoucher + '/' + split_name[0] + "_" + split_name[1] + ".tif"))
+                    if self.use_mask:
+                        img_mask = Image.open(
+                            os.path.join(self.root, "train/masks/" + split_name[0] + "_" + split_name[1] + ".png"))
+
+        elif self.mode == "test":
+            img_name = os.path.split(self.test_input_files[index % len(self.test_input_files)])[-1]
+            img_input = Image.open(self.test_input_files[index % len(self.test_input_files)])
+            img_expt_c = Image.open(self.test_target_files[index % len(self.test_target_files)])
+            if self.use_mask:
+                img_mask = Image.open(self.test_mask_files[index % len(self.test_mask_files)])
+        else:
+            raise NotImplementedError(f"Unknown mode: {self.mode}")
+
+        if self.mode == "train":
+            ratio_h = np.random.uniform(0.6, 1.0)
+            ratio_w = np.random.uniform(0.6, 1.0)
+            W, H = img_expt_c._size
+            crop_h = round(H * ratio_h)
+            crop_w = round(W * ratio_w)
+            i, j, h, w = transforms.RandomCrop.get_params(img_expt_c, output_size=(crop_h, crop_w))
+            img_input = TF.resized_crop(img_input, i, j, h, w, (448, 448))
+            img_expt_c = TF.resized_crop(img_expt_c, i, j, h, w, (448, 448))
+            if self.use_mask:
+                img_mask = TF.resized_crop(img_mask, i, j, h, w, (448, 448))
+
+            if np.random.random() > 0.5:
+                img_input = TF.hflip(img_input)
+                img_expt_c = TF.hflip(img_expt_c)
+                if self.use_mask:
+                    img_mask = TF.hflip(img_mask)
+
+        img_input = TF.to_tensor(img_input)
+        img_expt_c = TF.to_tensor(img_expt_c)
+        if self.use_mask:
+            img_mask = TF.to_tensor(img_mask)
+        if self.use_mask:
+            return {"A_input": img_input, "A_exptC": img_expt_c, "input_name": img_name, "mask": img_mask}
+        else:
+            return {"A_input": img_input, "A_exptC": img_exptC, "input_name": img_name}
+
+    def __len__(self):
+        if self.mode == "train":
+            return len(self.train_input_files)
+        elif self.mode == "test":
+            return len(self.test_input_files)
