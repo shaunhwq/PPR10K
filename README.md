@@ -1,5 +1,15 @@
 # Portrait Photo Retouching with PPR10K
 
+
+### Dataset generation notes:
+
+Required steps for dataset generation (360p):
+1. Download masks_360p, unzip and rename to masks
+2. Download train_val_images_tif_360p.zip, unzip
+3. Copy masks to train_val_images_tif_360p
+4. use utils/split_train_val.py, with -r pointing to train_val_images_tif_360p
+
+
 ### [Paper](https://arxiv.org/pdf/2105.09180.pdf) |   [Supplementary Material](http://www4.comp.polyu.edu.hk/~cslzhang/paper/PPR10K-cvpr21-supp.pdf) |   [Poster](http://liangjie.xyz/LjHomepageFiles/paper_files/poster_PPR10K.pdf)
 
 > **PPR10K: A Large-Scale Portrait Photo Retouching Dataset with Human-Region Mask and Group-Level Consistency** <br>
